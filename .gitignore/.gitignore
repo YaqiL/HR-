@@ -1,0 +1,104 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Apr 16 16:03:48 2017
+
+@author: LYQ
+"""
+
+#Import basic packages
+import numpy as np 
+import pandas as pd 
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+#Read data
+df = pd.read_csv('HR_comma_sep.csv')
+
+#Convert 'sales'and 'salary' to numeric
+df['sales'].replace(['sales', 'accounting', 'hr', 'technical', 'support', 'management',
+        'IT', 'product_mng', 'marketing', 'RandD'], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], inplace = True)
+df['salary'].replace(['low', 'medium', 'high'], [0, 1, 2], inplace = True)
+
+#Correlation Matrix
+corr = df.corr()
+# Draw the heatmap using seaborn
+sns.heatmap(corr, vmax=0.8, square=True)
+sns.plt.title('Heatmap of Correlation Matrix')
+
+#Extract 'left' column, because 'left' is our target value
+corr_left = pd.DataFrame(corr['left'].drop('left'))
+corr_left.sort_values(by = 'left', ascending = False)
+
+#Train-Test split
+from sklearn.model_selection import train_test_split
+df_copy = pd.get_dummies(df)
+data = df_copy.drop(['left'], axis=1)
+label = df_copy['left']
+x_train, x_test, y_train, y_test = train_test_split(data, label, test_size = 0.4, random_state = 0)
+
+#Logistic Regression
+from sklearn.linear_model import LogisticRegression
+logis = LogisticRegression()
+logis.fit(x_train, y_train)
+logis_score_train = logis.score(x_train, y_train)
+print("LogistcRegression Training Accuracy: ",logis_score_train)
+logis_score_test = logis.score(x_test, y_test)
+print("LogistcRegression Testing Accuracy: ",logis_score_test)
+
+#SVM
+from sklearn.svm import SVC
+svm = SVC()
+svm.fit(x_train, y_train)
+svm_score_train = svm.score(x_train, y_train)
+print("SVC Training Accuracy: ",svm_score_train)
+svm_score_test = svm.score(x_test, y_test)
+print("SVC Testing Accuracy: ",svm_score_test)
+
+
+#decision tree
+from sklearn import tree
+dt = tree.DecisionTreeClassifier()
+dt.fit(x_train, y_train)
+dt_score_train = dt.score(x_train, y_train)
+print("Decision Tree Training Accuracy: ",dt_score_train)
+dt_score_test = dt.score(x_test, y_test)
+print("Decision Tree Testing Accuracy: ",dt_score_test)
+
+#random forest
+from sklearn.ensemble import RandomForestClassifier
+radm = RandomForestClassifier()
+radm.fit(x_train, y_train)
+radm_score_train = radm.score(x_train, y_train)
+print("RandomForest Training Accuracy: ",radm_score_train)
+radm_score_test = radm.score(x_test, y_test)
+print("RandomForest Testing Accuracy: ",radm_score_test)
+
+#Model comparison
+models = pd.DataFrame({
+        'Model'          : ['Logistic Regression', 'SVM', 'Decision Tree', 'Random Forest'],
+        'Training_Score' : [logis_score_train, svm_score_train, dt_score_train, radm_score_train],
+        'Testing_Score'  : [logis_score_test, svm_score_test, dt_score_test, radm_score_test]
+    })
+models.sort_values(by='Testing_Score', ascending=False)
+
+#Feature Ranking
+indices=np.argsort(radm.feature_importances_)[::-1]
+
+for i in range(data.shape[1]):
+    print('%d.feature %d %s(%f)'%(i+1,indices[i],data.columns[indices[i]],radm.feature_importances_[indices[i]]))
+
+#Predict
+stay = df[df['left'] == 0]
+stay = pd.get_dummies(stay)
+stay_data = stay.drop(['left'], axis=1)
+stay_label = stay['left']
+
+predict = radm.predict_proba(stay_data)
+
+#nambers of employees will leave
+sum(predict[:, 1] == 1)
+
+#Show who has a at least 50% probability to leave
+stay['will leave company']=predict[:,1]
+print(stay[stay['will leave company']>=0.5])
